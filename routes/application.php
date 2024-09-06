@@ -41,6 +41,13 @@ Route::group(['middleware' => 'auth'], function () {
     });
 
     Route::group(['prefix' => 'sales_orders', 'as' => 'sales_orders.'], function () {
+        //Update sales order status
+        Route::post('update-status', [SalesOrderController::class, 'updateStatus'])->name('update_status');
+
+        //Save sales order
+        Route::post('save', [SalesOrderController::class, 'saveSalesOrder'])->name('save');
+
+
         // Display the list of sales orders
         Route::get('/', [SalesOrderController::class, 'index'])->name('index');
 
@@ -53,7 +60,12 @@ Route::group(['middleware' => 'auth'], function () {
         // Handle the deletion of a sales order
         Route::get('remove/{salesOrder}', [SalesOrderController::class, 'destroy'])->name('destroy');
 
-        Route::get('/events/{eventId}/timeslots', [SalesOrderController::class, 'getTimeslots']);
+        Route::post('/list', [SalesOrderController::class, 'getSalesOrderList'])->name('list');
+        Route::get('/events', [SalesOrderController::class, 'getEventList'])->name('events');
+        Route::get('/timeslots', [SalesOrderController::class, 'getTimeslots'])->name('timeslots');
+        Route::get('/stalls', [SalesOrderController::class, 'getStalls'])->name('stalls');
+
+//        Route::get('/events/{eventId}/timeslots', [SalesOrderController::class, 'getTimeslots']);
         Route::get('/timeslots/{time_slot_id}/event_stalls', [SalesOrderController::class, 'getEventStall']);
 
         //Search customer

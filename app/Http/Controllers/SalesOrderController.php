@@ -14,6 +14,126 @@ use Illuminate\Support\Facades\DB;
 class SalesOrderController extends Controller
 {
 
+    public function updateStatus(Request $request)
+    {
+        $salesOrderId = $request->get('order_id');
+        $status = $request->get('status');
+
+        $salesOrder = SalesOrder::find($salesOrderId);
+        $salesOrder->status = $status;
+        $salesOrder->save();
+
+        return response()->json(['message' => 'Sales order status updated successfully!'], 200);
+    }
+
+    public function saveSalesOrder(Request $request)
+    {
+        $customerId = $request->get('customer_id');
+        $eventId = $request->get('event_id');
+        $timeSlotId = $request->get('timeslot_id');
+        $rawStallList = $request->get('event_stalls');
+
+
+        $stallList = [];
+        foreach ($rawStallList as $stall) {
+            $stallList[] = [
+                'stallId' => $stall['stall_id'],
+                'timeSlotId' => $stall['time_slot_id'],
+                'price' => $stall['price'],
+            ];
+        }
+
+
+
+        $payAmount = 0;
+
+        if (count($stallList) > 0) {
+            foreach ($stallList as $stall) {
+                $payAmount += $stall['price'];
+            }
+        }
+
+        $customer = User::find($customerId);
+
+        $salesOrder = new SalesOrder([
+            'order_number' => 'SO-' . time() . '-' . rand(10, 100),
+            'total_price' => $payAmount,
+            'status' => 'pending',
+            'customer_id' => $customerId,
+            'customer_name' => $customer->name,
+            'event_id' => $eventId,
+            'time_slot_id' => $timeSlotId,
+            'stall_info' => json_encode($stallList),
+        ]);
+
+
+        foreach ($stallList as $stall) {
+            $stall = EventStall::where('stall_id', $stall['stallId'])->first();
+            $stall->status = 1;
+            $stall->stall_owner_id = $customerId;
+            $stall->booked_at = now();
+            $stall->save();
+        }
+
+
+        $salesOrder->save();
+
+        return response()->json(['message' => 'Sales order created successfully!'], 200);
+    }
+
+    public function getStalls(Request $request)
+    {
+        $time_slot_id = $request->get('timeslot_id');
+
+        try {
+            // Assuming you have a model `Timeslot` related to `Event`
+            $eventStall = EventStall::query()
+                ->where('time_slot_id', $time_slot_id)
+                ->where('status', 0)
+                ->get(); // Fetch timeslots by event ID
+            return response()->json($eventStall, 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error loading eventStall'], 500);
+        }
+    }
+
+
+    public function getEventList(Request $request)
+    {
+        $events = Event::all();
+
+        return response()->json($events);
+    }
+
+    public function getSalesOrderList(Request $request)
+    {
+        $filterData = $request->get('filterData');
+
+        switch ($filterData) {
+            case 'pending':
+                $status = 'pending';
+                break;
+            case 'paid':
+                $status = 'paid';
+                break;
+            case 'cancel':
+                $status = 'cancel';
+                break;
+            default:
+                $status = null;
+                break;
+        }
+
+        $salesOrders = SalesOrder::query()
+            ->where('status', 'LIKE', "%{$status}%")
+            ->get();
+
+
+        return response()->json($salesOrders);
+
+
+    }
+
     public function searchCustomer(Request $request)
     {
 
@@ -44,8 +164,11 @@ class SalesOrderController extends Controller
         return view('pages.applications.sales_order.sales_order', compact('title', 'description', 'salesOrders', 'events'));
     }
 
-    public function getTimeslots($eventId)
+    public function getTimeslots(Request $request)
     {
+        $eventId = $request->get('event_id');
+
+
         try {
             // Assuming you have a model `Timeslot` related to `Event`
             $timeslots = EventTimeSlot::where('event_id', $eventId)->get(); // Fetch timeslots by event ID

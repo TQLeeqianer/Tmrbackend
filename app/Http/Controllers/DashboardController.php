@@ -23,23 +23,51 @@ class DashboardController extends Controller
     {
         $title = "Dashboard";
         $description = "Some description for the page";
-
+    
+        // Count of all events
         $totalEvents = Event::all()->count();
-
-        $rawStalls = EventStall::all()->groupBy('time_slot_id')->first();
-
-        $totalStalls = 0;
-        if ($rawStalls) {
-            $totalStalls = $rawStalls->count();
-        }
-
-
+    
+        // Count of all stalls and their booked/available status
+        $totalStalls = EventStall::all()->groupBy('time_slot_id')->map(function ($stalls) {
+            return [
+                'total' => $stalls->count(),
+                'booked' => $stalls->where('status', 1)->count(),
+                'available' => $stalls->where('status', 0)->count(),
+            ];
+        });
+    
+        // Total sales and sales per event
         $totalSales = SalesOrder::where('status', 'paid')->get()->sum('total_price');
         $totalSales = number_format((float)$totalSales, 2, '.', '');
+    
 
+        
 
-        return view('pages.dashboard.demo_one', compact('title', 'description', 'totalEvents', 'totalStalls', 'totalSales'));
+        
+
+        $salesPerEvent = SalesOrder::where('status', 'paid')
+            ->selectRaw('event_id, SUM(total_price) as total_sales')
+            ->groupBy('event_id')
+            ->get()
+            ->map(function ($sale) {
+                return [
+                    'event_id' => $sale->event_id,
+                    'total_sales' => number_format((float)$sale->total_sales, 2, '.', ''),
+                    'event_name' => Event::find($sale->event_id)->name ?? 'Unknown Event',
+                ];
+            });
+    
+        // Count of active events
+        $activeEvent = Event::where('status', 'active')->count();
+    
+        // Count of expired events
+        $expiredEvent = Event::where('end_date', '<', now())->count();
+    
+        return view('pages.dashboard.demo_one', compact(
+            'title', 'description', 'totalEvents', 'totalStalls', 'totalSales', 'salesPerEvent', 'activeEvent', 'expiredEvent'
+        ));
     }
+    
 
     /**
      * Display dashbnoard demo two of the resource.
